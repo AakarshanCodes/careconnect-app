@@ -1,26 +1,35 @@
 # CareConnect
 
-A comprehensive healthcare management solution built with Kotlin for Android.
+A comprehensive healthcare management solution designed specifically for elderly individuals to manage their daily healthcare needs with ease.
 
-## 🏥 About
+## 👥 Team Members
 
-CareConnect is a modern Android application designed to streamline healthcare management and patient care coordination. Built with cutting-edge Kotlin technologies, it provides an intuitive platform for managing healthcare services.
+- **Manya Chourasiya** - PU02424EUG10012
+- **Aakarshan Indori** - PU02424EUG10001
+
+## 🏥 Problem Statement
+
+Elderly individuals face significant barriers in managing their daily healthcare—specifically medication adherence and emergency communication—due to age-related cognitive decline and physical limitations. Existing digital solutions exacerbate these issues by utilizing complex user interfaces (UI) and intricate navigation patterns that are not optimized for seniors.
+
+## 💡 Solution
+
+CareConnect is a modern application designed to address these challenges by providing a senior-friendly interface with simplified navigation, medication reminders, and easy emergency communication features.
 
 ## ✨ Features
 
-- **User-Friendly Interface** - Intuitive design for easy navigation
-- **Patient Management** - Comprehensive tools for tracking patient information
-- **Appointment Scheduling** - Manage and schedule appointments efficiently
+- **Medication Management** - Easy-to-use medication reminders and adherence tracking
+- **Emergency Communication** - Quick access to emergency contacts and services
+- **User-Friendly Interface** - Optimized design specifically for elderly users
 - **Health Records** - Secure access and management of health records
-- **Communication Tools** - Facilitate seamless communication between patients and providers
-- **Kotlin-Based** - Built with modern Kotlin for Android
+- **Appointment Scheduling** - Simplified appointment management
+- **Communication Tools** - Facilitate seamless communication between patients and caregivers
 
 ## 🛠️ Tech Stack
 
-- **Language**: Kotlin
-- **Build System**: Gradle (Kotlin DSL)
+- **Frontend**: HTML, CSS
+- **Mobile App**: Kotlin
 - **Platform**: Android
-- **IDE**: Android Studio
+- **Build System**: Gradle
 
 ## 📋 Prerequisites
 
@@ -36,15 +45,15 @@ Before you begin, ensure you have the following installed:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/Manya-Chourasiya/CareConnect.git
-cd CareConnect
+git clone https://github.com/AakarshanCodes/careconnect-app.git
+cd careconnect-app
 ```
 
 ### 2. Open in Android Studio
 
 - Launch Android Studio
 - Select **Open an Existing Project**
-- Navigate to the cloned `CareConnect` directory
+- Navigate to the cloned `careconnect-app` directory
 - Click **Open**
 
 ### 3. Build the Project
@@ -64,10 +73,14 @@ Android Studio will automatically download dependencies via Gradle. To manually 
 ./gradlew installDebug
 ```
 
+### 5. Explore the Application
+
+Once installed, launch the app and explore the senior-friendly interface designed for easy medication management and emergency communication.
+
 ## 📁 Project Structure
 
 ```
-CareConnect/
+careconnect-app/
 ├── app/                    # Main application module
 ├── gradle/                 # Gradle wrapper files
 ├── build.gradle.kts        # Project-level build configuration
@@ -91,9 +104,9 @@ The project uses `gradle.properties` for configuration. You can customize:
 
 Edit `gradle.properties` to adjust settings as needed.
 
-## 📚 Documentation
+## 📹 Demo
 
-For detailed documentation, refer to the `docs/` directory.
+For a demo of CareConnect in action, please visit: [Demo Video Link - Coming Soon](#)
 
 ## 🤝 Contributing
 
@@ -111,16 +124,12 @@ Please ensure your code follows the project's coding standards and includes appr
 
 This project is open source and available under the MIT License.
 
-## 👥 Authors
-
-- **Manya Chourasiya** - Project Owner
-
 ## 📞 Support
 
 For support, questions, or feedback:
 
-- Open an [Issue](https://github.com/Manya-Chourasiya/CareConnect/issues)
-- Create a [Discussion](https://github.com/Manya-Chourasiya/CareConnect/discussions)
+- Open an [Issue](https://github.com/AakarshanCodes/careconnect-app/issues)
+- Create a [Discussion](https://github.com/AakarshanCodes/careconnect-app/discussions)
 
 ## 🙏 Acknowledgments
 
