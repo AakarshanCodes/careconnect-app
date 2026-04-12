@@ -1,4 +1,5 @@
-<img width="1861" height="337" alt="image" src="https://github.com/user-attachments/assets/5a08ee9e-dfec-4898-8fde-9d1386d7764d" />
+<img width="1414" height="2000" alt="CareConnect Elder Care UI Poster" src="https://github.com/user-attachments/assets/53a9bbf5-dd2a-4235-a624-af7bfb34ff0c" />
+
 
 # CareConnect
 
