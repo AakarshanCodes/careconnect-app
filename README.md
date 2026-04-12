@@ -1,3 +1,5 @@
+<img width="1861" height="337" alt="image" src="https://github.com/user-attachments/assets/5a08ee9e-dfec-4898-8fde-9d1386d7764d" />
+
 # CareConnect
 
 A comprehensive healthcare management solution designed specifically for elderly individuals to manage their daily healthcare needs with ease.
