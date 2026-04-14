@@ -110,7 +110,7 @@ Edit `gradle.properties` to adjust settings as needed.
 
 ## 📹 Demo
 
-For a demo of CareConnect in action, please visit: [Demo Video Link - Coming Soon](#)
+For a demo of CareConnect in action, please visit: https://youtu.be/w5hJ099ARXM?si=XWjwc1fgJnXy_NJ9
 
 ## 🤝 Contributing
 
