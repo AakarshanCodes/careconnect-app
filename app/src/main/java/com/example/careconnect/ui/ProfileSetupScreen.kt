@@ -2,9 +2,11 @@ package com.example.careconnect.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
@@ -13,7 +15,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -36,6 +37,8 @@ fun ProfileSetupScreen(
     var age by remember { mutableStateOf("") }
     var bloodGroup by remember { mutableStateOf("") }
     var emergencyContact by remember { mutableStateOf("") }
+    
+    val scrollState = rememberScrollState()
 
     Scaffold(
         topBar = {
@@ -55,6 +58,7 @@ fun ProfileSetupScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .background(Background)
+                .verticalScroll(scrollState)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -131,13 +135,13 @@ fun ProfileSetupScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(32.dp))
 
             Button(
                 onClick = { onSave(fullName, age, bloodGroup, emergencyContact) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(80.dp),
+                    .height(72.dp),
                 shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(containerColor = Primary)
             ) {

@@ -15,6 +15,9 @@ interface ContactDao {
     @Query("SELECT * FROM contacts ORDER BY name ASC")
     fun getAllContacts(): Flow<List<Contact>>
 
+    @Query("SELECT * FROM contacts WHERE userId = :userId ORDER BY name ASC")
+    fun getContactsForUser(userId: String): Flow<List<Contact>>
+
     @Delete
     suspend fun deleteContact(contact: Contact)
 }

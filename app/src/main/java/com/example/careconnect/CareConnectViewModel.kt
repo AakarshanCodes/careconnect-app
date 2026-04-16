@@ -2,10 +2,11 @@ package com.example.careconnect
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 
 class CareConnectViewModel(private val repository: CareConnectRepository) : ViewModel() {
@@ -16,79 +17,121 @@ class CareConnectViewModel(private val repository: CareConnectRepository) : View
     private val _appointments = MutableStateFlow<List<Appointment>>(emptyList())
     val appointments: StateFlow<List<Appointment>> = _appointments.asStateFlow()
 
-    private val _medicalRecords = MutableStateFlow<List<MedicalRecord>>(emptyList())
-    val medicalRecords: StateFlow<List<MedicalRecord>> = _medicalRecords.asStateFlow()
+    private val _userMedicines = MutableStateFlow<List<Medicine>>(emptyList())
+    val userMedicines: StateFlow<List<Medicine>> = _userMedicines.asStateFlow()
 
-    val allContacts: Flow<List<Contact>> = repository.getAllContacts()
+    private val _userContacts = MutableStateFlow<List<Contact>>(emptyList())
+    val userContacts: StateFlow<List<Contact>> = _userContacts.asStateFlow()
 
-    fun login(email: String, role: UserRole) {
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
+    private var dataJobs = mutableListOf<Job>()
+
+    init {
         viewModelScope.launch {
-            val user = repository.login(email)
-            if (user != null && user.role == role) {
-                _currentUser.value = user
-                loadUserData(user)
-            } else {
-                val newUser = User(id = email, name = "New User", email = email, role = role)
-                repository.register(newUser)
-                _currentUser.value = newUser
-                loadUserData(newUser)
+            _currentUser.collectLatest { user ->
+                cancelDataJobs()
+                if (user != null) {
+                    val userId = user.id
+                    dataJobs.add(launch {
+                        repository.getAppointmentsForUser(userId, user.role).collect { _appointments.value = it }
+                    })
+                    dataJobs.add(launch {
+                        repository.getMedicineDao().getMedicinesForUser(userId).collect { _userMedicines.value = it }
+                    })
+                    dataJobs.add(launch {
+                        repository.getContactsForUser(userId).collect { _userContacts.value = it }
+                    })
+                } else {
+                    _appointments.value = emptyList()
+                    _userMedicines.value = emptyList()
+                    _userContacts.value = emptyList()
+                }
+            }
+        }
+    }
+
+    private fun cancelDataJobs() {
+        dataJobs.forEach { it.cancel() }
+        dataJobs.clear()
+    }
+
+    fun sendOtp(phoneNumber: String) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try { repository.sendOtp(phoneNumber) } catch (e: Exception) { } finally { _isLoading.value = false }
+        }
+    }
+
+    fun verifyOtp(phoneNumber: String, otp: String, onResult: (Boolean, String?) -> Unit) {
+        viewModelScope.launch {
+            _isLoading.value = true
+            try {
+                repository.verifyOtp(phoneNumber, otp)
+                val profile = repository.getUserProfile(phoneNumber)
+                if (profile != null) {
+                    _currentUser.value = profile
+                } else {
+                    _currentUser.value = User(id = phoneNumber, name = "New User", email = "", role = UserRole.PATIENT, phone = phoneNumber)
+                }
+                onResult(true, null)
+            } catch (e: Exception) {
+                onResult(false, e.message ?: "Verification Failed")
+            } finally {
+                _isLoading.value = false
             }
         }
     }
 
     fun updateProfile(name: String, age: String, bloodGroup: String, emergencyContact: String) {
         viewModelScope.launch {
-            val user = _currentUser.value ?: return@launch
-            val updatedUser = user.copy(name = name)
-            repository.register(updatedUser) // Room will replace due to PrimaryKey
-            _currentUser.value = updatedUser
+            val current = _currentUser.value ?: return@launch
+            val updated = current.copy(name = name, age = age, bloodGroup = bloodGroup, emergencyContact = emergencyContact)
+            repository.saveUserProfile(updated)
+            _currentUser.value = updated
         }
     }
 
-    private fun loadUserData(user: User) {
-        viewModelScope.launch {
-            if (user.role == UserRole.PATIENT) {
-                repository.getAppointmentsForPatient(user.id).collect { _appointments.value = it }
-                repository.getMedicalRecords(user.id).collect { _medicalRecords.value = it }
-            } else {
-                repository.getAppointmentsForDoctor(user.id).collect { _appointments.value = it }
-            }
-        }
+    fun addMedicine(name: String, time: String) {
+        val userId = _currentUser.value?.id ?: return
+        viewModelScope.launch { repository.getMedicineDao().insert(Medicine(userId = userId, name = name, time = time)) }
+    }
+
+    fun deleteMedicine(medicine: Medicine) {
+        viewModelScope.launch { repository.getMedicineDao().delete(medicine) }
+    }
+
+    fun addContact(name: String, phone: String, relation: String) {
+        val userId = _currentUser.value?.id ?: return
+        viewModelScope.launch { repository.addLocalContact(Contact(userId = userId, name = name, phoneNumber = phone, relation = relation)) }
+    }
+
+    fun deleteContact(contact: Contact) {
+        viewModelScope.launch { repository.deleteLocalContact(contact) }
     }
 
     fun bookAppointment(patientId: String, doctorId: String, dateTime: Long) {
         viewModelScope.launch {
-            val appointment = Appointment(
-                patientId = patientId,
-                doctorId = doctorId,
-                dateTime = dateTime,
-                status = AppointmentStatus.REQUESTED
+            repository.bookAppointment(
+                Appointment(
+                    patientId = patientId,
+                    doctorId = doctorId,
+                    dateTime = dateTime,
+                    status = AppointmentStatus.REQUESTED
+                )
             )
-            repository.bookAppointment(appointment)
         }
     }
 
-    fun updateAppointmentStatus(appointment: Appointment, newStatus: AppointmentStatus) {
+    fun updateAppointmentStatus(appointmentId: Int, status: AppointmentStatus) {
         viewModelScope.launch {
-            repository.updateAppointmentStatus(appointment.copy(status = newStatus))
-        }
-    }
-
-    fun addContact(contact: Contact) {
-        viewModelScope.launch {
-            repository.addContact(contact)
-        }
-    }
-
-    fun deleteContact(contact: Contact) {
-        viewModelScope.launch {
-            repository.deleteContact(contact)
+            repository.updateAppointmentStatus(appointmentId, status)
         }
     }
 
     fun logout() {
+        cancelDataJobs()
         _currentUser.value = null
-        _appointments.value = emptyList()
-        _medicalRecords.value = emptyList()
     }
 }

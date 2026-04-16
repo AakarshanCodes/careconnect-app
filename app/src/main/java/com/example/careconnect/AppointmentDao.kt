@@ -15,6 +15,9 @@ interface AppointmentDao {
     @Update
     suspend fun updateAppointment(appointment: Appointment)
 
+    @Query("UPDATE appointments SET status = :status WHERE id = :id")
+    suspend fun updateStatus(id: Int, status: AppointmentStatus)
+
     @Query("SELECT * FROM appointments WHERE patientId = :patientId")
     fun getAppointmentsForPatient(patientId: String): Flow<List<Appointment>>
 

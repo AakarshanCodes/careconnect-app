@@ -13,7 +13,7 @@ import androidx.room.TypeConverters
         Prescription::class,
         Contact::class
     ],
-    version = 4
+    version = 5
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

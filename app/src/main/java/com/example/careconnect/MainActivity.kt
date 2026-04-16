@@ -32,11 +32,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -50,6 +53,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.app.ActivityCompat
@@ -94,7 +98,8 @@ class MainActivity : ComponentActivity() {
             database.appointmentDao(),
             database.medicalRecordDao(),
             database.prescriptionDao(),
-            database.contactDao()
+            database.contactDao(),
+            database.medicineDao()
         )
 
         viewModel = ViewModelProvider(
@@ -150,13 +155,20 @@ fun MainScreen(database: AppDatabase, viewModel: CareConnectViewModel, tts: Text
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination?.route
 
-    val noShellScreens = listOf("splash", "login", "otp", "profile_setup", "login_success")
-    val showShell = currentDestination !in noShellScreens
+    val noShellScreens = listOf("splash", "login", "profile_setup", "login_success")
+    val showShell = currentDestination != null && 
+                   !noShellScreens.contains(currentDestination) && 
+                   !currentDestination.startsWith("otp")
 
     Scaffold(
         topBar = {
             if (showShell) {
-                CareTopAppBar(navController)
+                CareTopAppBar(navController, onLogout = {
+                    viewModel.logout()
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                })
             }
         },
         bottomBar = {
@@ -173,7 +185,7 @@ fun MainScreen(database: AppDatabase, viewModel: CareConnectViewModel, tts: Text
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CareTopAppBar(navController: NavHostController) {
+fun CareTopAppBar(navController: NavHostController, onLogout: () -> Unit) {
     CenterAlignedTopAppBar(
         title = {
             Text(
@@ -184,17 +196,13 @@ fun CareTopAppBar(navController: NavHostController) {
             )
         },
         navigationIcon = {
-            IconButton(onClick = {
-                if (!navController.popBackStack()) {
-                    navController.navigate("home")
-                }
-            }) {
+            IconButton(onClick = { navController.popBackStack() }) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Primary)
             }
         },
         actions = {
-            IconButton(onClick = { navController.navigate("medical") }) {
-                Icon(Icons.Default.AccountCircle, contentDescription = "Profile", tint = Primary, modifier = Modifier.size(32.dp))
+            IconButton(onClick = onLogout) {
+                Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = "Logout", tint = Color.Red)
             }
         },
         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -254,16 +262,20 @@ fun HomeScreen(navController: NavHostController, viewModel: CareConnectViewModel
             val data = result.data
             val resultList = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
             val command = resultList?.get(0)?.lowercase() ?: ""
-            handleVoiceCommand(command, navController, database, tts, context)
+            handleVoiceCommand(command, navController, database, viewModel, tts, context)
         }
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().background(Background).padding(24.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier.weight(1f),
+            modifier = Modifier.height(280.dp),
             contentAlignment = Alignment.Center
         ) {
             VoicePulseButton {
@@ -273,11 +285,6 @@ fun HomeScreen(navController: NavHostController, viewModel: CareConnectViewModel
                     putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your command")
                 }
                 voiceLauncher.launch(intent)
-                try {
-                    voiceLauncher.launch(intent)
-                } catch (e: Exception) {
-                    Toast.makeText(context, "Speech not supported", Toast.LENGTH_SHORT).show()
-                }
             }
         }
 
@@ -298,9 +305,9 @@ fun HomeScreen(navController: NavHostController, viewModel: CareConnectViewModel
 
         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(16.dp)) {
             BentoCard(
-                modifier = Modifier.fillMaxWidth().height(140.dp),
+                modifier = Modifier.fillMaxWidth().height(130.dp),
                 title = "Medical Info",
-                subtitle = "Blood type A+, Allergies",
+                subtitle = "Blood type, Allergies",
                 icon = Icons.Default.MedicalInformation,
                 containerColor = SurfaceContainerLow,
                 iconContainerColor = SecondaryContainer,
@@ -308,11 +315,11 @@ fun HomeScreen(navController: NavHostController, viewModel: CareConnectViewModel
                 onClick = { navController.navigate("medical") }
             )
             
-            Row(modifier = Modifier.fillMaxWidth().height(140.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Row(modifier = Modifier.fillMaxWidth().height(130.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                 BentoCard(
                     modifier = Modifier.weight(1f),
                     title = "Contacts",
-                    subtitle = "Emergency Network",
+                    subtitle = "Network",
                     icon = Icons.Default.ContactPhone,
                     containerColor = Color.White,
                     iconContainerColor = PrimaryFixed,
@@ -337,16 +344,21 @@ fun HomeScreen(navController: NavHostController, viewModel: CareConnectViewModel
         Spacer(modifier = Modifier.height(24.dp))
 
         Button(
-            onClick = { navController.navigate("sos") },
-            modifier = Modifier.fillMaxWidth().height(80.dp),
+            onClick = { 
+                val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:112"))
+                context.startActivity(intent)
+            },
+            modifier = Modifier.fillMaxWidth().height(72.dp),
             colors = ButtonDefaults.buttonColors(containerColor = Color.Red),
-            shape = RoundedCornerShape(24.dp),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 12.dp)
+            shape = RoundedCornerShape(20.dp),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 8.dp)
         ) {
-            Icon(Icons.Default.EmergencyShare, contentDescription = null, modifier = Modifier.size(32.dp))
+            Icon(Icons.Default.EmergencyShare, contentDescription = null, modifier = Modifier.size(28.dp))
             Spacer(modifier = Modifier.width(12.dp))
             Text("SOS EMERGENCY", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold)
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -355,9 +367,9 @@ fun VoicePulseButton(onClick: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
     val scale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.2f,
+        targetValue = 1.15f,
         animationSpec = infiniteRepeatable(
-            animation = tween(1500, easing = LinearEasing),
+            animation = tween(1200, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ), label = "scale"
     )
@@ -365,26 +377,18 @@ fun VoicePulseButton(onClick: () -> Unit) {
     Box(contentAlignment = Alignment.Center) {
         Box(
             modifier = Modifier
-                .size(240.dp)
+                .size(220.dp)
                 .border(1.dp, Primary.copy(alpha = 0.1f), CircleShape)
                 .graphicsLayer(scaleX = scale, scaleY = scale)
         )
         Box(
             modifier = Modifier
-                .size(200.dp)
-                .background(
-                    Brush.linearGradient(listOf(Primary, PrimaryContainer)),
-                    CircleShape
-                )
+                .size(180.dp)
+                .background(Brush.linearGradient(listOf(Primary, PrimaryContainer)), CircleShape)
                 .clickable(onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            Icon(
-                Icons.Default.Mic,
-                contentDescription = "Microphone",
-                tint = OnPrimary,
-                modifier = Modifier.size(80.dp)
-            )
+            Icon(Icons.Default.Mic, contentDescription = "Microphone", tint = OnPrimary, modifier = Modifier.size(70.dp))
         }
     }
 }
@@ -403,78 +407,82 @@ fun BentoCard(
 ) {
     Card(
         modifier = modifier.clickable(onClick = onClick),
-        shape = RoundedCornerShape(32.dp),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor),
-        border = if (showBorder)
-            BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.15f)) else null
+        border = if (showBorder) BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.1f)) else null
     ) {
-        Column(modifier = Modifier.padding(24.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+        Column(modifier = Modifier.padding(20.dp).fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Box(
-                    modifier = Modifier.size(56.dp).background(iconContainerColor, RoundedCornerShape(16.dp)),
+                    modifier = Modifier.size(48.dp).background(iconContainerColor, RoundedCornerShape(12.dp)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(32.dp))
+                    Icon(icon, contentDescription = null, tint = contentColor, modifier = Modifier.size(28.dp))
                 }
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Outline, modifier = Modifier.size(24.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, tint = Outline.copy(alpha = 0.5f), modifier = Modifier.size(20.dp))
             }
             Column {
-                Text(title, fontWeight = FontWeight.Bold, color = OnSurface, fontSize = 20.sp)
+                Text(
+                    text = title, 
+                    fontWeight = FontWeight.Bold, 
+                    color = OnSurface, 
+                    fontSize = 18.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
                 if (subtitle != null) {
-                    Text(subtitle, color = Outline, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+                    Text(
+                        text = subtitle, 
+                        color = Outline, 
+                        fontSize = 13.sp, 
+                        fontWeight = FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }
     }
 }
 
-fun handleVoiceCommand(command: String, navController: NavHostController, database: AppDatabase, tts: TextToSpeech?, context: Context) {
-    Log.d("VoiceCommand", "Received: $command")
+fun handleVoiceCommand(command: String, navController: NavHostController, database: AppDatabase, viewModel: CareConnectViewModel, tts: TextToSpeech?, context: Context) {
     val lowerCommand = command.lowercase()
     
-    val addMedicineRegex = Regex("(?:add medicine|remind me to take) (.+?) at (\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a\\.m\\.|p\\.m\\.))")
-    val match = addMedicineRegex.find(lowerCommand)
+    // Check for "Add Medicine" first
+    val timeRegex = Regex("(\\d{1,2}(?::\\d{2})?\\s*(?:am|pm|a\\.m\\.|p\\.m\\.))")
+    val timeMatch = timeRegex.find(lowerCommand)
 
+    if (timeMatch != null && (lowerCommand.contains("medicine") || lowerCommand.contains("remind") || lowerCommand.contains("take"))) {
+        var timeString = timeMatch.groupValues[1].trim().uppercase().replace(".", "")
+        if (!timeString.contains(":")) {
+            timeString = if (timeString.contains("AM")) timeString.replace("AM", ":00 AM") else timeString.replace("PM", ":00 PM")
+        }
+        
+        var medicineName = lowerCommand
+            .replace(timeMatch.groupValues[0], "")
+            .replace("add", "").replace("medicine", "").replace("remind me to take", "")
+            .replace("remind me to", "").replace("remind me", "").replace("reminder", "")
+            .replace("at", "").replace("for", "").replace("set", "").replace("take", "")
+            .trim().replaceFirstChar { it.uppercase() }
+
+        if (medicineName.isBlank()) medicineName = "Medicine"
+
+        viewModel.addMedicine(medicineName, timeString)
+        val triggerTime = convertToMillis(timeString)
+        scheduleNotification(context, "Medicine Reminder", "Take your $medicineName", triggerTime)
+        tts?.speak("Added a reminder for $medicineName at $timeString", TextToSpeech.QUEUE_FLUSH, null, null)
+        Toast.makeText(context, "Reminder added: $medicineName at $timeString", Toast.LENGTH_LONG).show()
+        return
+    }
+
+    // Redirects logic
     when {
-        match != null -> {
-            val medicineName = match.groupValues[1].trim().replaceFirstChar { it.uppercase() }
-            var timeString = match.groupValues[2].trim().uppercase().replace(".", "")
-            
-            if (!timeString.contains(":")) {
-                timeString = if (timeString.contains("AM")) timeString.replace("AM", ":00 AM") else timeString.replace("PM", ":00 PM")
-            }
-
-            CoroutineScope(Dispatchers.IO).launch {
-                val medicine = Medicine(name = medicineName, time = timeString)
-                database.medicineDao().insert(medicine)
-                val triggerTime = convertToMillis(timeString)
-                scheduleNotification(context, "Medicine Reminder", "Take your $medicineName", triggerTime)
-                
-                launch(Dispatchers.Main) {
-                    tts?.speak("Added a reminder for $medicineName at $timeString", TextToSpeech.QUEUE_FLUSH, null, null)
-                    Toast.makeText(context, "Reminder added: $medicineName at $timeString", Toast.LENGTH_LONG).show()
-                }
-            }
-        }
-        lowerCommand.contains("reminder") -> {
-            tts?.speak("Opening your reminders", TextToSpeech.QUEUE_FLUSH, null, null)
-            navController.navigate("medicine")
-        }
-        lowerCommand.contains("help") || lowerCommand.contains("sos") || lowerCommand.contains("emergency") -> {
-            tts?.speak("Opening emergency screen", TextToSpeech.QUEUE_FLUSH, null, null)
-            navController.navigate("sos")
-        }
-        lowerCommand.contains("contact") -> {
-            tts?.speak("Opening your contacts", TextToSpeech.QUEUE_FLUSH, null, null)
-            navController.navigate("contacts")
-        }
-        lowerCommand.contains("medical") || lowerCommand.contains("profile") || lowerCommand.contains("info") -> {
-            tts?.speak("Opening your medical profile", TextToSpeech.QUEUE_FLUSH, null, null)
-            navController.navigate("medical")
-        }
+        lowerCommand.contains("reminder") || lowerCommand.contains("medicine") -> navController.navigate("medicine")
+        lowerCommand.contains("help") || lowerCommand.contains("sos") || lowerCommand.contains("emergency") -> navController.navigate("sos")
+        lowerCommand.contains("contact") || lowerCommand.contains("call") -> navController.navigate("contacts")
+        lowerCommand.contains("medical") || lowerCommand.contains("profile") || lowerCommand.contains("info") -> navController.navigate("medical")
         else -> {
-            tts?.speak("Sorry, I didn't understand. You can say add medicine name at time.", TextToSpeech.QUEUE_FLUSH, null, null)
-            Toast.makeText(context, "Command not recognized: $command", Toast.LENGTH_SHORT).show()
+            tts?.speak("I didn't catch that. You can say add medicine name at time.", TextToSpeech.QUEUE_FLUSH, null, null)
         }
     }
 }
@@ -482,30 +490,63 @@ fun handleVoiceCommand(command: String, navController: NavHostController, databa
 @Composable
 fun AppNavigation(database: AppDatabase, viewModel: CareConnectViewModel, navController: NavHostController, tts: TextToSpeech?) {
     NavHost(navController = navController, startDestination = "splash") {
-        composable("splash") {
-            SplashScreen(onTimeout = {
-                navController.navigate("login") {
-                    popUpTo("splash") { inclusive = true }
+        composable("splash") { SplashScreen { navController.navigate("login") { popUpTo("splash") { inclusive = true } } } }
+        composable("login") { 
+            val context = LocalContext.current
+            val voiceLauncher = rememberLauncherForActivityResult(
+                contract = ActivityResultContracts.StartActivityForResult()
+            ) { result ->
+                if (result.resultCode == Activity.RESULT_OK) {
+                    val data = result.data
+                    val resultList = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
+                    val spokenText = resultList?.get(0) ?: ""
+                    val digits = spokenText.filter { it.isDigit() }
+                    val phone = if (digits.length >= 10) digits.takeLast(10) else ""
+                    
+                    if (phone.length == 10) {
+                        viewModel.sendOtp(phone)
+                        navController.navigate("otp/$phone")
+                    } else {
+                        Toast.makeText(context, "I heard: $spokenText. Please speak your 10-digit phone number clearly.", Toast.LENGTH_LONG).show()
+                    }
                 }
-            })
-        }
-        composable("login") {
+            }
+
             LoginScreen(
-                onSendOtp = { phoneNumber ->
-                    navController.navigate("otp/$phoneNumber")
+                onSendOtp = { 
+                    viewModel.sendOtp(it)
+                    navController.navigate("otp/$it") 
                 },
-                onVoiceLogin = {
-                    // Voice login logic
+                onVoiceLogin = { 
+                    val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
+                        putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
+                        putExtra(RecognizerIntent.EXTRA_PROMPT, "Speak your 10-digit phone number")
+                    }
+                    voiceLauncher.launch(intent)
                 }
             )
         }
         composable("otp/{phoneNumber}") { backStackEntry ->
-            val phoneNumber = backStackEntry.arguments?.getString("phoneNumber") ?: ""
+            val phone = backStackEntry.arguments?.getString("phoneNumber") ?: ""
+            val context = LocalContext.current
             OtpVerificationScreen(
-                phoneNumber = phoneNumber,
+                phoneNumber = phone,
                 onVerify = { otp ->
-                    viewModel.login(phoneNumber, UserRole.PATIENT)
-                    navController.navigate("profile_setup")
+                    viewModel.verifyOtp(phone, otp) { success, error ->
+                        if (success) {
+                            val user = viewModel.currentUser.value
+                            if (user?.name == "New User" || user?.name?.isBlank() == true) {
+                                navController.navigate("profile_setup")
+                            } else {
+                                navController.navigate("home") {
+                                    popUpTo("login") { inclusive = true }
+                                }
+                            }
+                        } else {
+                            Toast.makeText(context, error ?: "Verification failed", Toast.LENGTH_SHORT).show()
+                        }
+                    }
                 },
                 onBack = { navController.popBackStack() }
             )
@@ -514,116 +555,55 @@ fun AppNavigation(database: AppDatabase, viewModel: CareConnectViewModel, navCon
             ProfileSetupScreen(
                 onSave = { name, age, bg, contact ->
                     viewModel.updateProfile(name, age, bg, contact)
-                    navController.navigate("login_success")
+                    navController.navigate("home") {
+                        popUpTo("login") { inclusive = true }
+                    }
                 },
                 onBack = { navController.popBackStack() }
             )
         }
         composable("login_success") {
             LoginSuccessScreen(
-                onGoToDashboard = {
-                    navController.navigate("home") {
-                        popUpTo("login") { inclusive = true }
-                    }
-                },
+                onGoToDashboard = { navController.navigate("home") { popUpTo("login") { inclusive = true } } },
                 onViewProfile = { navController.navigate("medical") }
             )
         }
-        composable("home") {
-            HomeScreen(navController, viewModel, database, tts)
-        }
-        composable("medicine") {
-            MedicineScreen(database = database)
-        }
-        composable("sos") {
-            SOSScreen()
-        }
-        composable("contacts") {
-            ContactsScreen(viewModel)
-        }
-        composable("medical") {
-            MedicalScreen()
-        }
+        composable("home") { HomeScreen(navController, viewModel, database, tts) }
+        composable("medicine") { MedicineScreen(viewModel) }
+        composable("sos") { SOSScreen() }
+        composable("contacts") { ContactsScreen(viewModel) }
+        composable("medical") { MedicalScreen(viewModel) }
     }
 }
-
 @Composable
 fun LoginSuccessScreen(
     onGoToDashboard: () -> Unit,
     onViewProfile: () -> Unit
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Background),
-        contentAlignment = Alignment.Center
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape)
-                    .background(Primary.copy(alpha = 0.1f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = Primary,
-                    modifier = Modifier.size(80.dp)
-                )
-            }
+        Text("Login Successful 🎉")
 
-            Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-            Text(
-                "You're all set!",
-                style = MaterialTheme.typography.displaySmall,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-            Text(
-                "Welcome to CareConnect",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Light,
-                color = OnSurfaceVariant,
-                modifier = Modifier.padding(top = 8.dp)
-            )
+        Button(onClick = onGoToDashboard) {
+            Text("Go to Home")
+        }
 
-            Spacer(modifier = Modifier.height(64.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-            Button(
-                onClick = onGoToDashboard,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(64.dp),
-                shape = RoundedCornerShape(16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Primary)
-            ) {
-                Text("Go to Dashboard", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.width(12.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            TextButton(onClick = onViewProfile) {
-                Text("View Account Profile", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Medium, color = Primary)
-            }
+        Button(onClick = onViewProfile) {
+            Text("View Profile")
         }
     }
 }
-
 @Composable
-fun MedicineScreen(database: AppDatabase) {
+fun MedicineScreen(viewModel: CareConnectViewModel) {
     val context = LocalContext.current
-    val medicines = remember { mutableStateListOf<Medicine>() }
+    val medicines by viewModel.userMedicines.collectAsState()
     var medicineName by remember { mutableStateOf("") }
     var selectedTime by remember { mutableStateOf("09:00 AM") }
 
@@ -639,13 +619,6 @@ fun MedicineScreen(database: AppDatabase) {
         calendar.get(Calendar.MINUTE),
         false
     )
-
-    LaunchedEffect(Unit) {
-        database.medicineDao().getAllMedicines().collect { list ->
-            medicines.clear()
-            medicines.addAll(list)
-        }
-    }
 
     Column(modifier = Modifier.fillMaxSize().background(Background).padding(24.dp)) {
         Text("Add Reminder", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
@@ -697,14 +670,9 @@ fun MedicineScreen(database: AppDatabase) {
         Button(
             onClick = {
                 if (medicineName.isNotBlank()) {
-                    val name = medicineName
-                    val timeValue = selectedTime
-                    CoroutineScope(Dispatchers.IO).launch {
-                        val medicine = Medicine(name = name, time = timeValue)
-                        database.medicineDao().insert(medicine)
-                        val triggerTime = convertToMillis(timeValue)
-                        scheduleNotification(context, "Medicine Reminder", "Take your $name", triggerTime)
-                    }
+                    viewModel.addMedicine(medicineName, selectedTime)
+                    val triggerTime = convertToMillis(selectedTime)
+                    scheduleNotification(context, "Medicine Reminder", "Take your $medicineName", triggerTime)
                     medicineName = ""
                     Toast.makeText(context, "Reminder saved!", Toast.LENGTH_SHORT).show()
                 }
@@ -744,7 +712,7 @@ fun MedicineScreen(database: AppDatabase) {
                                 Text(medicine.time, color = Outline)
                             }
                         }
-                        IconButton(onClick = { CoroutineScope(Dispatchers.IO).launch { database.medicineDao().delete(medicine) } }) {
+                        IconButton(onClick = { viewModel.deleteMedicine(medicine) }) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = Color.Red)
                         }
                     }
@@ -872,7 +840,7 @@ fun SOSScreen() {
 @Composable
 fun ContactsScreen(viewModel: CareConnectViewModel) {
     val context = LocalContext.current
-    val contacts by viewModel.allContacts.collectAsState(initial = emptyList())
+    val contacts by viewModel.userContacts.collectAsState()
     
     val contactLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.StartActivityForResult()
@@ -903,7 +871,7 @@ fun ContactsScreen(viewModel: CareConnectViewModel) {
                                         val numberIndex = phoneCursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
                                         if (numberIndex != -1) {
                                             val number = phoneCursor.getString(numberIndex)
-                                            viewModel.addContact(Contact(name = name, phoneNumber = number, relation = "Selected Contact"))
+                                            viewModel.addContact(name, number, "Selected Contact")
                                             Toast.makeText(context, "Contact added: " + name, Toast.LENGTH_SHORT).show()
                                         }
                                     }
@@ -977,60 +945,74 @@ fun ContactsScreen(viewModel: CareConnectViewModel) {
 }
 
 @Composable
-fun MedicalScreen() {
-    var name by remember { mutableStateOf("John Doe") }
-    var bloodGroup by remember { mutableStateOf("A+") }
-    var allergies by remember { mutableStateOf("Peanuts, Penicillin") }
-    var medications by remember { mutableStateOf("Vitamin D3, Lisinopril") }
+fun MedicalScreen(viewModel: CareConnectViewModel) {
+    val context = LocalContext.current
+    val user by viewModel.currentUser.collectAsState()
+    
+    // Use key to force recomposition when user changes
+    var name by remember(user) { mutableStateOf(user?.name ?: "") }
+    var bloodGroup by remember(user) { mutableStateOf(user?.bloodGroup ?: "") }
+    var age by remember(user) { mutableStateOf(user?.age ?: "") }
+    var emergencyContact by remember(user) { mutableStateOf(user?.emergencyContact ?: "") }
 
-    Column(modifier = Modifier.fillMaxSize().background(Background).padding(24.dp)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Background)
+            .verticalScroll(rememberScrollState())
+            .padding(24.dp)
+    ) {
         Text("Medical Profile", style = MaterialTheme.typography.displaySmall, fontWeight = FontWeight.Bold)
         Text("Keep your vital information updated.", color = Outline)
         
         Spacer(modifier = Modifier.height(32.dp))
         
         Card(
-            shape = RoundedCornerShape(32.dp),
-            colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow),
+            shape = RoundedCornerShape(32.dp), 
+            colors = CardDefaults.cardColors(containerColor = SurfaceContainerLow), 
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                EditableMedicalField(label = "Name", value = name, onValueChange = { name = it })
+            Column(modifier = Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+                EditableMedicalField(label = "Full Name", value = name, onValueChange = { name = it })
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                    EditableMedicalField(modifier = Modifier.weight(1f), label = "Blood group", value = bloodGroup, onValueChange = { bloodGroup = it })
-                    EditableMedicalField(modifier = Modifier.weight(1f), label = "Allergies", value = allergies, onValueChange = { allergies = it })
+                    EditableMedicalField(modifier = Modifier.weight(1f), label = "Blood Group", value = bloodGroup, onValueChange = { bloodGroup = it })
+                    EditableMedicalField(modifier = Modifier.weight(1f), label = "Age", value = age, onValueChange = { age = it })
                 }
-                EditableMedicalField(label = "Chronic Medications", value = medications, onValueChange = { medications = it }, isTextArea = true)
+                EditableMedicalField(label = "Emergency Contact", value = emergencyContact, onValueChange = { emergencyContact = it })
             }
         }
         
-        Spacer(modifier = Modifier.weight(1f))
+        Spacer(modifier = Modifier.height(40.dp))
         
         Button(
-            onClick = { /* Save logic */ },
+            onClick = { 
+                viewModel.updateProfile(name, age, bloodGroup, emergencyContact)
+                Toast.makeText(context, "Profile Updated Successfully!", Toast.LENGTH_SHORT).show()
+            },
             modifier = Modifier.fillMaxWidth().height(72.dp),
-            shape = CircleShape
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = Primary)
         ) {
             Text("Save Information", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
         }
+        
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
 fun EditableMedicalField(modifier: Modifier = Modifier, label: String, value: String, onValueChange: (String) -> Unit, isTextArea: Boolean = false) {
     Column(modifier = modifier) {
-        Text(label, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp, bottom = 8.dp))
+        Text(label, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(start = 8.dp, bottom = 8.dp), fontSize = 14.sp)
         OutlinedTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isTextArea) 120.dp else 56.dp),
-            shape = RoundedCornerShape(if (isTextArea) 24.dp else 28.dp),
+            modifier = Modifier.fillMaxWidth().height(if (isTextArea) 120.dp else 56.dp),
+            shape = RoundedCornerShape(if (isTextArea) 20.dp else 28.dp),
             colors = OutlinedTextFieldDefaults.colors(
-                unfocusedContainerColor = Color.White,
+                unfocusedContainerColor = Color.White, 
                 focusedContainerColor = Color.White,
-                unfocusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent, 
                 focusedBorderColor = Primary.copy(alpha = 0.5f)
             ),
             textStyle = MaterialTheme.typography.bodyLarge
@@ -1044,22 +1026,14 @@ fun scheduleNotification(context: Context, title: String, message: String, trigg
         putExtra("message", message)
     }
     val pendingIntent = PendingIntent.getBroadcast(
-        context,
-        System.currentTimeMillis().toInt(),
-        intent,
+        context, System.currentTimeMillis().toInt(), intent,
         PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
     )
     val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
-    
     if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-        if (alarmManager.canScheduleExactAlarms()) {
-            alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-        } else {
-            alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-        }
-    } else {
-        alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
-    }
+        if (alarmManager.canScheduleExactAlarms()) alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+        else alarmManager.set(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
+    } else alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, triggerTime, pendingIntent)
 }
 
 fun convertToMillis(time: String): Long {
@@ -1077,7 +1051,5 @@ fun convertToMillis(time: String): Long {
             if (calendar.before(now)) calendar.add(java.util.Calendar.DAY_OF_MONTH, 1)
         }
         calendar.timeInMillis
-    } catch (e: Exception) {
-        System.currentTimeMillis()
-    }
+    } catch (e: Exception) { System.currentTimeMillis() }
 }

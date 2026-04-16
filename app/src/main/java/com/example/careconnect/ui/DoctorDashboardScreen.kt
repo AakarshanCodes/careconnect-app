@@ -52,7 +52,7 @@ fun DoctorDashboardScreen(
                 DoctorAppointmentCard(
                     appointment = appointment,
                     onStatusUpdate = { newStatus ->
-                        viewModel.updateAppointmentStatus(appointment, newStatus)
+                        viewModel.updateAppointmentStatus(appointment.id, newStatus)
                     }
                 )
             }
